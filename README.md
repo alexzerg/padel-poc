@@ -3,6 +3,8 @@
 A small FastAPI app that shows padel court availability and travel time to each club.
 The sample data is for the Miami area.
 
+![Padel Finder screenshot](docs/screenshot.png)
+
 ## What is included
 
 - FastAPI API and a static web UI
