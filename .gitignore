@@ -29,3 +29,6 @@ out/
 .DS_Store
 .idea/
 .vscode/
+
+# internal deployment overlay, never published
+deploy/
