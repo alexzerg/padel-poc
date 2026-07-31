@@ -1,0 +1,128 @@
+{{- if .Values.drive.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "padel.name" . }}-drive
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "padel.name" . }}-drive
+  namespace: {{ .Release.Namespace }}
+rules:
+  # Deliberately minimal: read and patch exactly one ConfigMap, nothing else in the namespace.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.drive.stateConfigMap | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "padel.name" . }}-drive
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "padel.name" . }}-drive
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "padel.name" . }}-drive
+---
+{{- if not (lookup "v1" "ConfigMap" .Release.Namespace .Values.drive.stateConfigMap) }}
+# Created once and then owned by the CronJob. Helm must not reset it on every upgrade,
+# because it carries the spend ledger that the budget guards rely on.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.drive.stateConfigMap }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  drive-usage.json: "{}"
+---
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "padel.name" . }}-drive
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.drive.schedule | quote }}
+  timeZone: {{ .Values.drive.timeZone | quote }}
+  # One run a day means one run: never overlap, never catch up after a long outage.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # No retries at all: a failed run must wait for tomorrow rather than re-spend quota.
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.drive.activeDeadlineSeconds }}
+      template:
+        spec:
+          serviceAccountName: {{ include "padel.name" . }}-drive
+          restartPolicy: Never
+          containers:
+            - name: drive
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # Seed writable state from the ConfigMap so the ledger survives restarts.
+                  cp /cmstate/drive-usage.json /state/drive-usage.json 2>/dev/null || echo '{}' > /state/drive-usage.json
+                  cp /cmstate/drive.json /state/drive.json 2>/dev/null || true
+                  # Whatever happens next, report the spend: an aborted run that keeps its
+                  # ledger to itself would let the daily guard forget calls it already made.
+                  trap 'python3 /srv/scripts/publish_drive.py --ledger-only || true' EXIT
+                  python3 /srv/scripts/gen_drive.py --provider {{ .Values.drive.provider }} --i-know-this-spends-quota
+                  python3 /srv/scripts/publish_drive.py
+              env:
+                - name: DRIVE_TRAFFIC
+                  value: "1"
+                - name: DRIVE_OUT
+                  value: /state/drive.json
+                - name: DRIVE_LEDGER
+                  value: /state/drive-usage.json
+                - name: DRIVE_LOCK
+                  value: /state/gen-drive.lock
+                - name: DRIVE_CLUBS
+                  value: /srv/app/data/clubs.json
+                - name: DRIVE_CONFIGMAP
+                  value: {{ .Values.drive.stateConfigMap | quote }}
+                - name: DRIVE_TZ_OFFSET
+                  value: {{ .Values.drive.tzOffset | quote }}
+                - name: TOMTOM_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.drive.secretName }}
+                      key: TOMTOM_API_KEY
+                      optional: true
+                - name: MAPBOX_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.drive.secretName }}
+                      key: MAPBOX_TOKEN
+                      optional: true
+              volumeMounts:
+                - name: state
+                  mountPath: /state
+                - name: cmstate
+                  mountPath: /cmstate
+                  readOnly: true
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+          volumes:
+            - name: state
+              emptyDir: {}
+            - name: cmstate
+              configMap:
+                name: {{ .Values.drive.stateConfigMap }}
+{{- end }}

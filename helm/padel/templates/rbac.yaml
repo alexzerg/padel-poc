@@ -1,0 +1,44 @@
+{{- if .Values.cache.configMap.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "padel.fullname" . }}
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "padel.fullname" . }}-cache
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.cache.configMap.name | quote }}]
+    verbs: ["get", "patch", "update"]
+  # the UI "Check" button spawns a one-off scraper Job from the CronJob template
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "padel.fullname" . }}-cache
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "padel.fullname" . }}-cache
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "padel.fullname" . }}
+{{- end }}

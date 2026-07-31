@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHJlY3Qgd2lkdGg9JzY0JyBoZWlnaHQ9JzY0JyByeD0nMTQnIGZpbGw9JyMwNDc4NTcnLz48ZWxsaXBzZSBjeD0nMzInIGN5PScyNCcgcng9JzE0JyByeT0nMTcnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2ZmZmZmZicgc3Ryb2tlLXdpZHRoPSc0Jy8+PHBhdGggZD0nTTMyIDh2MzJNMTggMjRoMjhNMjMgMTNsMTggMjJNNDEgMTNMMjMgMzUnIHN0cm9rZT0nI2ZmZmZmZicgc3Ryb2tlLXdpZHRoPScxLjYnIG9wYWNpdHk9Jy44NScvPjxyZWN0IHg9JzI5JyB5PSc0MScgd2lkdGg9JzYnIGhlaWdodD0nMTYnIHJ4PSczJyBmaWxsPScjZmZmZmZmJy8+PC9zdmc+">
+<title>Padel Finder</title>
+<style>
+  :root { --accent:#047857; --soft:#ecfdf5; --border:#e2e8f0; --muted:#64748b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f8fafc; color:#0f172a; }
+  .wrap { max-width:1020px; margin:0 auto; padding:22px 16px 48px; }
+  h1 { font-size:25px; margin:0 0 2px; color:var(--accent); }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+  .panel { background:#fff; border:1px solid var(--border); border-radius:10px; padding:13px; margin-bottom:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .row:last-child { margin-bottom:0; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); width:70px; }
+  button.chip { border:1px solid var(--border); background:#fff; border-radius:999px; padding:6px 13px; font-size:13px; cursor:pointer; }
+  button.chip.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  input[type=date] { border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:13px; }
+  .status { font-size:13px; color:var(--muted); margin:0 0 12px; }
+  .status b { color:#0f172a; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  th,td { padding:9px 12px; text-align:left; font-size:14px; border-bottom:1px solid var(--border); }
+  th { background:#f1f5f9; font-size:11px; text-transform:uppercase; color:var(--muted); }
+  tr.slot { cursor:pointer; }
+  tr.slot:hover td { background:var(--soft); }
+  tr.slot.open td { background:var(--soft); font-weight:600; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .tag.in { background:#d1fae5; color:#065f46; }
+  .tag.out { background:#fef3c7; color:#92400e; }
+  .det { background:#fff; }
+  .det .inner { display:flex; gap:16px; padding:6px 4px 12px; }
+  .det img { width:120px; height:90px; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:#f1f5f9; }
+  .det .meta { flex:1; font-size:13px; color:#334155; }
+  .det .meta div { margin-bottom:3px; }
+  .actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
+  .btn { border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn.ghost { background:#fff; color:var(--accent); }
+  .verdict { font-size:13px; font-weight:600; padding:4px 10px; border-radius:8px; }
+  .verdict.ok { background:#d1fae5; color:#065f46; }
+  .verdict.bad { background:#fee2e2; color:#991b1b; }
+  .verdict.wait { background:#fef3c7; color:#92400e; }
+  details.scan { margin-top:22px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px 13px; }
+  details.scan summary { cursor:pointer; font-weight:600; color:var(--accent); font-size:14px; }
+  details.scan table { margin-top:10px; }
+  .warn { background:#fef3c7; border:1px solid #fcd34d; color:#78350f; padding:8px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
+/* The longest name in the catalogue ("Open Padel by Lasaigues") used to wrap and make
+   that one row twice as tall. Never wrap: the column simply widens to fit the longest name,
+   so every row keeps the same single-line height. */
+/* display:flex must never sit on the <td> itself: a flex box reports a tiny min-content
+   width, so the table stopped reserving room for the name and it spilled over the next
+   column. The cell stays a real table-cell and the flex row lives in a div inside it. */
+.clubcol { min-width: 300px; }   /* 88px logo + 8px gap + longest club name */
+.clubcell { display: flex; align-items: center; gap: 8px; }
+.cname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Logos have wildly different widths (Epic 1:1, Reserve 3:1), so the logo sits in a
+   fixed-width slot. Every club name then starts at the same x and the column reads straight. */
+/* Centered inside the slot: a 1:1 logo left-aligned leaves 64px of dead space and reads
+   as a broken margin, while centering gives every logo equal air on both sides. */
+.clogobox { flex: 0 0 88px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; }
+/* Club logos are wordmarks, not squares: fix the height, let the width follow.
+   Reserve is ~3:1 and Epic is 1:1, so a square box would squash one or crop the other. */
+.clogo { height: 24px; width: auto; max-width: 88px; object-fit: contain; object-position: center;
+  flex: 0 0 auto; }
+.cthumb { width: 26px; height: 26px; border-radius: 7px; object-fit: cover; flex: 0 0 auto;
+  border: 1px solid var(--border); background: #f1f5f9; }
+.cbadge { width: 26px; height: 26px; border-radius: 7px; background: #047857; color: #fff;
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center;
+  justify-content: center; flex: 0 0 auto; }
+.walkegg { white-space: nowrap; font-weight: 700; color: #047857; cursor: help; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div>
+      <h1>Padel Finder</h1>
+      <div class="sub" id="sub">Loading catalogue...</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><span class="lbl">Date</span><input type="date" id="date"></div>
+    <div class="row"><span class="lbl">From</span>
+      <select id="origin"></select>
+      <button class="chip" id="geobtn" title="Uses the browser location service (GPS/Wi-Fi), not your IP - unaffected by the VPN">Use my location</button>
+      <span id="geomsg" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div class="row"><span class="lbl">Court</span>
+      <button class="chip on" data-g="indoor" data-v="true">Indoor only</button>
+      <button class="chip" data-g="indoor" data-v="">All</button>
+    </div>
+    <div class="row"><span class="lbl">Court size</span>
+      <button class="chip on" data-g="court_type" data-v="double">Double</button>
+      <button class="chip" data-g="court_type" data-v="single">Single</button>
+    </div>
+    <div class="row"><span class="lbl">Duration</span>
+      <button class="chip on" data-g="duration" data-v="60">60 min</button>
+      <button class="chip" data-g="duration" data-v="90">90 min</button>
+      <button class="chip" data-g="duration" data-v="">Any</button>
+    </div>
+    <div class="row"><span class="lbl">Time</span>
+      <button class="chip" data-g="win" data-v="">Any</button>
+      <button class="chip" data-g="win" data-v="12:00-17:00">12-17</button>
+      <button class="chip on" data-g="win" data-v="17:00-20:00">17-20</button>
+      <button class="chip" data-g="win" data-v="20:00-23:59">20-23</button>
+    </div>
+  </div>
+
+  <div id="banner"></div>
+  <p class="status" id="status">Loading...</p>
+
+  <table>
+    <thead><tr><th>Time</th><th>Len</th><th>Club</th><th>Free courts</th><th>Type</th><th>Price</th><th id="disthead">Distance</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7">Loading...</td></tr></tbody>
+  </table>
+
+  <div id="nofeed" style="display:none;margin:14px 0;padding:10px 12px;border:1px solid var(--border);
+       border-radius:10px;background:#fff8e6">
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">Not covered by the live scan</div>
+    <div id="nofeed-list" style="font-size:12px;line-height:1.6"></div>
+  </div>
+
+  <details class="scan">
+    <summary id="scansum">Scan log</summary>
+    <div id="scanmeta" class="status" style="margin:8px 0 0"></div>
+    <table>
+      <thead><tr><th>Club</th><th>Miles</th><th>Date</th><th>Status</th><th>Slots</th><th>Scanned at (UTC)</th></tr></thead>
+      <tbody id="scanrows"><tr><td colspan="7">open to load</td></tr></tbody>
+    </table>
+  </details>
+</div>
+<script>
+var state = { indoor: "true", duration: "60", win: "17:00-20:00", court_type: "double" };
+var CLUBS = {};
+// Reference points. Straight-line (haversine) distance is computed from whichever
+// one is active, so the Distance column is always a single consistent metric.
+var ORIGINS = {
+  "33020": { label: "Hollywood (33020)", lat: 26.0112, lng: -80.1495 },
+  "turnberry": { label: "Turnberry, Aventura (33180)", lat: 25.9585, lng: -80.1420 },
+  "yachtclub": { label: "3598 Yacht Club Dr, Aventura (33180)", lat: 25.9735, lng: -80.1355 },
+  "solemia": { label: "SoLe Mia, North Miami (33181)", lat: 25.9112, lng: -80.1527 }
+};
+var origin = null;
+var originKey = null;   // matches a key in the drive matrix; null for browser geolocation
+var DRIVE = null;       // /api/drive: precomputed road distance and drive time per origin
+
+// Straight-line distance is a poor proxy for effort: Pulse Padel Hub is 6.4 mi away in a
+// straight line but 15.2 mi and 28 min by road, while Ultra is 6.2 mi straight and 7 min
+// by road. Prefer the real routed time whenever the matrix covers the chosen origin.
+var LIVE_DRIVE = null;  // /api/drive/live: one OSRM table call for an arbitrary origin
+var WALK_MAX_MI = 1.5;  // at or below this road distance the club is shown as walkable
+
+// Traffic-aware matrices carry a drive time per departure half-hour and per day type.
+// Leaving for a 17:00 court is not the same trip as leaving for a 20:30 one: from
+// Hollywood to Platinum Padel it is 34 min at 17:00 against 23 min at 20:30.
+function bucketKey(dateStr, startStr) {
+  if (!dateStr || !startStr) { return null; }
+  var m = /^(\d{1,2}):(\d{2})\s*([AP]M)?/i.exec(startStr.trim());
+  if (!m) { return null; }
+  var h = parseInt(m[1], 10), mi = parseInt(m[2], 10), ap = (m[3] || "").toUpperCase();
+  if (ap === "PM" && h < 12) { h += 12; }
+  if (ap === "AM" && h === 12) { h = 0; }
+  var parts = dateStr.split("-");
+  var dow = new Date(+parts[0], +parts[1] - 1, +parts[2]).getDay();  // local, no UTC shift
+  var weekend = dow === 0 || dow === 6;
+  var hh = h < 10 ? "0" + h : "" + h;
+  return (weekend ? "we " : "wd ") + hh + ":" + (mi >= 30 ? "30" : "00");
+}
+
+function driveFor(clubName, slot) {
+  // A custom origin (browser geolocation) is resolved live; the four saved origins come
+  // from the precomputed matrix.
+  if (!originKey) { return LIVE_DRIVE ? LIVE_DRIVE[clubName] || null : null; }
+  if (!DRIVE) { return null; }
+  var byOrigin = (DRIVE.matrix || {})[originKey];
+  var d = byOrigin ? byOrigin[clubName] || null : null;
+  if (!d) { return null; }
+  if (d.by_bucket && slot) {
+    var key = bucketKey(dateInput.value, slot.start);
+    if (key) {
+      // Providers differ in granularity: Mapbox data is half-hourly, TomTom hourly to stay
+      // inside its free tier. Fall back from "wd 17:30" to "wd 17:00" rather than dropping
+      // to the traffic-free average.
+      var hourKey = key.slice(0, key.length - 2) + "00";
+      var v = d.by_bucket[key] != null ? d.by_bucket[key] : d.by_bucket[hourKey];
+      if (v != null) {
+        return { min: v, road_mi: d.road_mi, bucket: d.by_bucket[key] != null ? key : hourKey };
+      }
+    }
+    // Outside the measured evening window (and on weekends) there is no traffic sample, so
+    // use the free-flow figure and label it approximate instead of quietly passing off an
+    // evening number as if it applied at 9 in the morning.
+    if (d.offpeak && d.offpeak.min != null) {
+      return { min: d.offpeak.min, road_mi: d.offpeak.road_mi, approx: true };
+    }
+  }
+  return d;
+}
+
+function haversineMi(a, b, c, d) {
+  var R = 3958.8, toRad = Math.PI / 180;
+  var dLat = (c - a) * toRad, dLng = (d - b) * toRad;
+  var s1 = Math.sin(dLat / 2), s2 = Math.sin(dLng / 2);
+  var x = s1 * s1 + Math.cos(a * toRad) * Math.cos(c * toRad) * s2 * s2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function priceBlock(s, c) {
+  var lo = s.price_min === undefined || s.price_min === null ? s.price : s.price_min;
+  if (lo === null || lo === undefined) {
+    return '<div><b>Typical price:</b> ' + (c.price_note || "see Playtomic") +
+      ' <span style="color:#94a3b8">(club rate - Playtomic published no price for this slot)</span></div>';
+  }
+  return "<div><b>Price for this slot:</b> " + priceText(s) + " / " + s.duration +
+    ' min <span style="color:#94a3b8">(published by Playtomic for this court and time)</span></div>';
+}
+function courtList(s) {
+  var names = (s.courts && s.courts.length) ? s.courts : (s.court ? [s.court] : []);
+  if (!names.length) return "n/a";
+  var cp = s.court_prices || {};
+  return names.map(function (n) {
+    return cp[n] === undefined ? n : n + " (" + money(cp[n]) + ")";
+  }).join(", ");
+}
+function money(v) {
+  if (v === null || v === undefined || isNaN(v)) return "";
+  return "$" + (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, "");
+}
+function priceText(s) {
+  var lo = s.price_min, hi = s.price_max;
+  if (lo === null || lo === undefined) lo = s.price;
+  if (lo === null || lo === undefined) return '<span class="muted">n/a</span>';
+  if (hi !== null && hi !== undefined && hi !== lo) return money(lo) + "-" + money(hi);
+  return money(lo);
+}
+function updateSub() {
+  var n = Object.keys(CLUBS).length;
+  if (!n) return;
+  document.getElementById("sub").innerHTML =
+    "<b>" + n + "</b> padel clubs around Aventura, Hollywood and SoLe Mia";
+}
+function distText(s) {
+  var c = CLUBS[s.club] || {};
+  var d = driveFor(s.club, s);
+  if (d) {
+    // Easter egg. Walkability is a matter of distance, not of drive time: 2.0 mi covered in
+    // a 7 min drive is still a 40 min walk. WALK_MAX_MI is the gate; the drive figure stays
+    // in the tooltip so nothing is hidden.
+    if (d.road_mi != null && d.road_mi <= WALK_MAX_MI) {
+      var walkTip = d.road_mi < 0.05
+        ? "same address - you are already there"
+        : d.road_mi + " mi, about " + Math.round(d.road_mi * 20) +
+          " min on foot (" + d.min + " min by car)";
+      return '<span class="walkegg" title="' + walkTip + '">\uD83D\uDEB6 &#1055;&#1077;&#1096;&#1082;&#1086;&#1084; ' +
+        '&#1076;&#1086;&#1081;&#1076;&#1077;&#1096;&#1100;!</span>';
+    }
+    var tip, mark = "";
+    if (d.approx) {
+      tip = ' title="approximate: no traffic sample outside 17:00-23:00 on weekdays"';
+      mark = "~";
+    } else {
+      tip = d.bucket ? ' title="leaving at ' + d.bucket.slice(3) + ', measured with traffic"' : "";
+    }
+    return "<span" + tip + "><b>" + mark + d.min + " min</b> " +
+      "<span style=\"color:#94a3b8\">" + d.road_mi + " mi</span></span>";
+  }
+  // Browser geolocation is not in the precomputed matrix, so fall back to straight line
+  // and say so, rather than passing a rough estimate off as a drive time.
+  if (origin && c.lat && c.lng) {
+    var mi = haversineMi(origin.lat, origin.lng, c.lat, c.lng);
+    return "~" + mi.toFixed(1) + " mi <span style=\"color:#94a3b8\">straight</span>";
+  }
+  return "-";
+}
+
+function setOrigin(o, persistKey) {
+  origin = o;
+  originKey = persistKey || null;
+  document.getElementById("disthead").textContent =
+    (originKey && DRIVE ? "Drive from " : "Distance from ") + o.label;
+  updateSub();
+  if (persistKey) { try { localStorage.setItem("padelOrigin", persistKey); } catch (e) {} }
+  load();
+}
+
+function initOrigin() {
+  var sel = document.getElementById("origin");
+  Object.keys(ORIGINS).forEach(function (k) {
+    var o = document.createElement("option");
+    o.value = k; o.textContent = ORIGINS[k].label;
+    sel.appendChild(o);
+  });
+  var saved = null;
+  try { saved = localStorage.getItem("padelOrigin"); } catch (e) {}
+  var key = (saved && ORIGINS[saved]) ? saved : "33020";
+  sel.value = key;
+  origin = ORIGINS[key];
+  originKey = key;
+  document.getElementById("disthead").textContent = "Drive from " + origin.label;
+  sel.addEventListener("change", function () {
+    document.getElementById("geomsg").textContent = "";
+    if (ORIGINS[sel.value]) { setOrigin(ORIGINS[sel.value], sel.value); }
+  });
+  document.getElementById("geobtn").addEventListener("click", useMyLocation);
+}
+
+// Offline fallback for manual entry: local ZIP centroids, so no geocoding
+// service or API key is needed. "lat,lng" is accepted verbatim too.
+
+function useMyLocation() {
+  var msg = document.getElementById("geomsg");
+  if (!navigator.geolocation) { msg.textContent = "this browser has no geolocation API"; return; }
+  msg.textContent = "locating...";
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    var acc = Math.round(pos.coords.accuracy);
+    msg.textContent = "located, +/-" + acc + " m accuracy (GPS/Wi-Fi, not IP)";
+    var sel = document.getElementById("origin");
+    if (!sel.querySelector('option[value="me"]')) {
+      var o = document.createElement("option");
+      o.value = "me"; o.textContent = "my location";
+      sel.insertBefore(o, sel.firstChild);
+    }
+    sel.value = "me";
+    var la = pos.coords.latitude, ln = pos.coords.longitude;
+    setOrigin({ label: "my location", lat: la, lng: ln }, null);
+    // Resolve real drive times for this exact point: one OSRM table call covers all clubs,
+    // cached server-side for a day. Straight-line distance stays only as a failure mode.
+    LIVE_DRIVE = null;
+    msg.textContent = "located, +/-" + acc + " m - measuring drive times...";
+    fetch("/api/drive/live?lat=" + la + "&lng=" + ln)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.matrix && Object.keys(d.matrix).length) {
+          LIVE_DRIVE = d.matrix;
+          document.getElementById("disthead").textContent = "Drive from my location";
+          msg.textContent = "located, +/-" + acc + " m - drive times from your position";
+        } else {
+          msg.textContent = "located, +/-" + acc + " m - drive times unavailable, showing straight line";
+        }
+        load();  // render() needs the payload; load() refetches and redraws
+      })
+      .catch(function () { msg.textContent = "located, +/-" + acc + " m - straight line only"; });
+  }, function (err) {
+    msg.textContent = "location unavailable (" + err.message + ") - keeping " + origin.label;
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 });
+}
+var openKey = null;
+var dateInput = document.getElementById("date");
+// Open on TODAY in the user's own timezone. toISOString() alone is a UTC date,
+// which flips to tomorrow every evening in EDT, so shift by the local offset first.
+function localDay(d) {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+}
+dateInput.value = localDay(new Date());
+
+document.querySelectorAll("button.chip").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var g = b.dataset.g;
+    if (!g) { return; }  // the geolocation button is a chip too, but not a filter
+    document.querySelectorAll('button.chip[data-g="' + g + '"]').forEach(function (o) { o.classList.remove("on"); });
+    b.classList.add("on");
+    state[g] = b.dataset.v;
+    load();
+  });
+});
+dateInput.addEventListener("change", load);
+
+initOrigin();
+function renderNoFeed(list) {
+  var box = document.getElementById("nofeed");
+  var out = list.filter(function (c) { return c.feed && c.feed !== "playtomic"; });
+  if (!out.length) { box.style.display = "none"; return; }
+  document.getElementById("nofeed-list").innerHTML = out.map(function (c) {
+    return "<div><b>" + c.name + "</b> - " + (c.feed_note || "no live feed") +
+      " &middot; <a href=\"" + (c.book_url || "#") + "\" target=\"_blank\" rel=\"noopener\">book direct</a></div>";
+  }).join("");
+  box.style.display = "block";
+}
+
+// The drive matrix is precomputed, so this is one small static fetch, not a routing call
+// per row. If it fails the table still works and simply shows straight-line distance.
+fetch("/api/drive").then(function (r) { return r.ok ? r.json() : null; }).then(function (m) {
+  if (m && m.matrix) {
+    DRIVE = m;
+    if (originKey && origin) {
+      document.getElementById("disthead").textContent = "Drive from " + origin.label;
+    }
+  }
+}).catch(function () {}).then(function () {
+  return fetch("/api/clubs").then(function (r) { return r.json(); }).then(function (list) {
+    list.forEach(function (c) { CLUBS[c.name] = c; });
+    renderNoFeed(list);
+    updateSub();  // the headline count depends on the chosen origin, not on 33020
+    load();  // distances need the club coordinates
+  });
+}).catch(function () {});
+
+function load() {
+  var p = new URLSearchParams({ date: dateInput.value });
+  if (state.indoor) { p.set("indoor", state.indoor); }
+  if (state.duration) { p.set("duration", state.duration); }
+  if (state.court_type) { p.set("court_type", state.court_type); }
+  if (state.win) {
+    var parts = state.win.split("-");
+    p.set("start_from", parts[0]);
+    p.set("start_to", parts[1]);
+  }
+  document.getElementById("rows").innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+  fetch("/api/slots?" + p.toString())
+    .then(function (r) { if (!r.ok) { throw new Error("HTTP " + r.status); } return r.json(); })
+    .then(render)
+    .catch(function (e) {
+      document.getElementById("rows").innerHTML = '<tr><td colspan="7">API error: ' + e.message + "</td></tr>";
+    });
+}
+
+function render(d) {
+  var age = d.age_seconds === undefined ? null : Math.round(d.age_seconds / 60);
+  document.getElementById("status").innerHTML = "<b>" + d.count + "</b> time slots" +
+    (age === null ? "" : " - data " + age + " min old");
+  document.getElementById("banner").innerHTML = d.source === "snapshot"
+    ? '<div class="warn">No live scan yet - showing the bundled snapshot. See the scan log below.</div>' : "";
+  var tb = document.getElementById("rows");
+  if (!d.slots.length) {
+    tb.innerHTML = '<tr><td colspan="7">Nothing free with these filters. Try 90 min or a wider time window.</td></tr>';
+    return;
+  }
+  tb.innerHTML = d.slots.map(function (s) {
+    var key = s.club + "|" + s.start + "|" + s.duration;
+    var n = s.court_count || 1;
+    var sizes = (s.court_types && s.court_types.length) ? s.court_types : (s.court_type ? [s.court_type] : []);
+    var sizeTag = sizes.length
+      ? ' <span class="tag" style="background:#eef2ff;color:#4338ca">' + sizes.join("/") + "</span>"
+      : ' <span class="tag" style="background:#f1f5f9;color:#64748b">size n/a</span>';
+    var tag = s.indoor_source === "unknown"
+      ? '<span class="tag" style="background:#f1f5f9;color:#64748b">type unknown</span>'
+      : (s.indoor ? '<span class="tag in">indoor</span>' : '<span class="tag out">outdoor</span>');
+    var main = '<tr class="slot" data-key="' + key + '">' +
+      "<td><b>" + s.start + "</b></td>" +
+      "<td>" + s.duration + " min</td>" +
+      '<td class="clubcol"><div class="clubcell">' + clubBadge(s.club) +
+        '<span class="cname">' + s.club + "</span></div></td>" +
+      "<td><b>" + n + "</b></td>" +
+      "<td>" + tag + sizeTag + "</td>" +
+      "<td>" + priceText(s) + "</td>" +
+      "<td>" + distText(s) + "</td></tr>";
+    var det = '<tr class="det" id="det-' + cssId(key) + '" style="display:none"><td colspan="7">' +
+      detailHtml(s, key) + "</td></tr>";
+    return main + det;
+  }).join("");
+  if (openKey) {
+    var el = document.getElementById("det-" + cssId(openKey));
+    if (el) { el.style.display = ""; }
+  }
+}
+
+function clubInitials(name) {
+  return name.split(/\s+/).filter(function (w) { return /[A-Za-z0-9]/.test(w[0]); })
+    .slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase();
+}
+// Playtomic publishes no separate club logo, only a cover photo on Cloudinary.
+// Ask Cloudinary for a 64px square crop instead of downloading the full photo
+// 100 times: one extra path segment, no extra service on our side.
+function squareThumb(url) {
+  if (!url) { return null; }
+  return url.indexOf("/image/upload/") === -1 ? url
+    : url.replace("/image/upload/", "/image/upload/w_64,h_64,c_fill,g_auto,q_auto,f_auto/");
+}
+function clubBadge(name) {
+  return '<span class="clogobox">' + clubMark(name) + "</span>";
+}
+function clubMark(name) {
+  var club = CLUBS[name] || {};
+  var meta = club._meta || {};
+  var ini = clubInitials(name);
+  var fallback = '<span class="cbadge">' + ini + "</span>";
+  // 1st choice: the club's real logo, shipped with the app (48px tall PNG, ~5 KB).
+  // 2nd choice: a square crop of the Playtomic cover photo. 3rd: initials badge.
+  if (club.logo_file) {
+    // StaticFiles is mounted at "/", not "/static", so logos live at /logos/<file>.
+    return '<img class="clogo" src="/logos/' + club.logo_file + '" alt="' + name +
+      '" loading="lazy" onerror="this.outerHTML=&quot;' +
+      fallback.replace(/"/g, "&#39;") + '&quot;">';
+  }
+  var src = squareThumb(meta.logo);
+  if (!src) { return fallback; }
+  return '<img class="cthumb" src="' + src + '" alt="" loading="lazy" ' +
+    'onerror="this.outerHTML=&quot;' + fallback.replace(/"/g, "&#39;") + '&quot;">';
+}
+function tileHtml(initials) {
+  return '<div style="width:120px;height:90px;border-radius:8px;background:#047857;color:#fff;' +
+    'display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;' +
+    'letter-spacing:1px;flex:0 0 auto">' + initials + "</div>";
+}
+
+function tile(initials) {
+  var d = document.createElement("div");
+  d.innerHTML = tileHtml(initials);
+  return d.firstChild;
+}
+
+function cssId(key) { return key.replace(/[^a-zA-Z0-9]/g, "_"); }
+
+function detailHtml(s, key) {
+  var c = CLUBS[s.club] || {};
+  var meta = c._meta || {};
+  var initials = s.club.split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase();
+  // Prefer the club's own logo shipped with the app. The Playtomic cover photo is only a
+  // fallback: those URLs are versioned and go stale, which is where the console 404s came
+  // from (3 of 10 clubs had a dead cover image).
+  var imgSrc = c.logo_file ? "/logos/" + c.logo_file : meta.logo;
+  var img = imgSrc
+    ? '<img src="' + imgSrc + '" alt="" onerror="this.replaceWith(tile(\'' + initials + '\'))">'
+    : tileHtml(initials);
+  var addr = c.address || s.area || "";
+  // meta.maps_url off the club page is a static preview IMAGE, not a map link.
+  var mapsUrl = "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent(s.club + " " + addr);
+  var maps = ' - <a href="' + mapsUrl + '" target="_blank" rel="noreferrer">open in maps</a>';
+  return '<div class="inner">' + img + '<div class="meta">' +
+    "<div><b>" + s.club + "</b></div>" +
+    "<div>" + addr + maps + "</div>" +
+    priceBlock(s, c) +
+    "<div>Courts free at " + s.start + ": " + courtList(s) + "</div>" +
+    "<div>" + (s.indoor ? "Indoor" : "Outdoor") +
+      (s.court_type ? ", " + s.court_type : "") + (s.wall ? ", " + s.wall + " walls" : "") +
+      (s.indoor_source === "court-props" ? " (stated per court by the club)"
+                                         : " (club-level default - court not specified)") +
+      " - " + s.duration + " min - " + distText(s) + "</div>" +
+    (meta.description ? '<div style="color:#64748b">' + meta.description.slice(0, 160) + "</div>" : "") +
+    '<div class="actions">' +
+      '<button class="btn" data-check="' + key + '">Check availability</button>' +
+      '<a class="btn ghost" href="' + s.url + '" target="_blank" rel="noreferrer">Open on Playtomic</a>' +
+      '<span class="verdict" id="v-' + cssId(key) + '" style="display:none"></span>' +
+    "</div></div></div>";
+}
+
+document.getElementById("rows").addEventListener("click", function (e) {
+  var check = e.target.getAttribute && e.target.getAttribute("data-check");
+  if (check) { runCheck(check, e.target); return; }
+  var tr = e.target.closest("tr.slot");
+  if (!tr) { return; }
+  var key = tr.getAttribute("data-key");
+  var det = document.getElementById("det-" + cssId(key));
+  var isOpen = det.style.display !== "none";
+  document.querySelectorAll("tr.det").forEach(function (d) { d.style.display = "none"; });
+  document.querySelectorAll("tr.slot").forEach(function (r) { r.classList.remove("open"); });
+  if (isOpen) { openKey = null; return; }
+  det.style.display = "";
+  tr.classList.add("open");
+  openKey = key;
+});
+
+function runCheck(key, btn) {
+  var club = key.split("|")[0];
+  var start = key.split("|")[1];
+  var v = document.getElementById("v-" + cssId(key));
+  btn.disabled = true;
+  btn.textContent = "checking...";
+  v.style.display = "";
+  v.className = "verdict wait";
+  v.textContent = "asking Playtomic...";
+  var t0 = Date.now();
+  fetch("/api/recheck?club=" + encodeURIComponent(club) + "&date=" + dateInput.value, { method: "POST" })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+    .then(function (res) {
+      var secs = ((Date.now() - t0) / 1000).toFixed(1);
+      btn.disabled = false;
+      btn.textContent = "Check again";
+      if (!res.ok) { throw new Error(res.body.error || "failed"); }
+      var rep = (res.body.report || []).filter(function (r) { return r.date === dateInput.value; });
+      var stillThere = false;
+      load();
+      loadScan();
+      fetch("/api/slots?date=" + dateInput.value + "&group=false")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          stillThere = (d.slots || []).some(function (x) {
+            return x.club === club && x.start === start;
+          });
+          v.className = "verdict " + (stillThere ? "ok" : "bad");
+          v.textContent = (stillThere ? "confirmed" : "cancelled - slot is gone") +
+            " (" + secs + "s, " + (rep.length ? rep[0].slots : res.body.slots) + " slots at club)";
+        });
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "Check availability";
+      v.className = "verdict bad";
+      v.textContent = "check failed: " + err.message;
+    });
+}
+
+function loadScan() {
+  fetch("/api/scan").then(function (r) { return r.json(); }).then(function (s) {
+    var meta = document.getElementById("scanmeta");
+    var rows = document.getElementById("scanrows");
+    if (!s.scanned) {
+      meta.textContent = s.message || "No live scan yet.";
+      rows.innerHTML = '<tr><td colspan="7">no scan data</td></tr>';
+      return;
+    }
+    var mins = Math.round((s.age_seconds || 0) / 60);
+    var days = {};
+    (s.report || []).forEach(function (r) { days[r.date] = 1; });
+    document.getElementById("scansum").textContent =
+      "Scan log - " + (s.report || []).length + " club/day scans over " +
+      Object.keys(days).length + " days, " + (s.total_slots || 0) + " slots - last scan " +
+      (s.scanned_at || "?") + " (" + mins + " min ago)" +
+      (s.errors && s.errors.length ? " - " + s.errors.length + " error(s)" : " - 0 errors") +
+      (s.last_recheck_at ? " - newest re-check " + s.last_recheck_at : "");
+    meta.textContent = (s.total_slots || 0) + " slots captured within " +
+      s.radius_miles + " mi of " + s.center + " - per club/day detail below";
+    rows.innerHTML = (s.report || []).map(function (r) {
+      var ok = r.status === "ok";
+      var bg = ok ? "#d1fae5" : (r.status === "error" ? "#fee2e2" : "#fef3c7");
+      var fg = ok ? "#065f46" : (r.status === "error" ? "#991b1b" : "#92400e");
+      return "<tr><td>" + r.club + "</td><td>" + (r.miles === null || r.miles === undefined ? "-" : r.miles) +
+        "</td><td>" + r.date + '</td><td><span class="tag" style="background:' + bg + ";color:" + fg + '">' +
+        r.status + (r.error ? " (" + r.error + ")" : "") + "</span></td><td>" + r.slots +
+        "</td><td>" + (r.scanned_at || "-") + "</td></tr>";
+    }).join("");
+  }).catch(function () {});
+}
+
+load();
+loadScan();
+</script>
+</body>
+</html>

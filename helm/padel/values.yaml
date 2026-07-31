@@ -1,0 +1,111 @@
+# Generic example values. Override image, host, namespace and secrets for your cluster.
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/your-user/padel-finder
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  # Disabled by default so a fresh install is not internet-facing.
+  enabled: false
+  className: nginx
+  host: padel.example.com
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: true
+    secretName: padel-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+scraper:
+  enabled: false
+  schedule: "*/15 * * * *"
+  daysAhead: 3
+  mountCode: true
+  # Sample catalogue defaults. Override these for another region.
+  centerCoord: "26.0112,-80.1495"
+  radiusMiles: 20
+  settleMs: 1500
+  warmService:
+    enabled: false
+    resources:
+      requests: { cpu: 100m, memory: 768Mi }
+      limits: { cpu: "2", memory: 2Gi }
+  image:
+    repository: ghcr.io/your-user/padel-finder-scraper
+    tag: "0.1.0"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+cache:
+  configMap:
+    enabled: true
+    name: padel-cache
+
+env:
+  APP_VERSION: "0.1.0"
+  LOG_LEVEL: INFO
+  DIRECT_FETCH: "false"
+  INGEST_TTL_SECONDS: "5400"
+  CACHE_TTL_SECONDS: "600"
+  HTTP_TIMEOUT_SECONDS: "8"
+  TOKEN_TTL_SECONDS: "3000"
+
+# Disabled by default. Create the Secret out of band before enabling.
+playtomic:
+  existingSecret: padel-playtomic
+  emailKey: email
+  passwordKey: password
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Disabled by default. Enable only with a provider key in the named Secret.
+drive:
+  enabled: false
+  provider: tomtom
+  schedule: "0 14 * * 1-5"
+  timeZone: America/New_York
+  tzOffset: "-04:00"
+  activeDeadlineSeconds: 1800
+  stateConfigMap: padel-drive-state
+  secretName: padel-drive-tokens

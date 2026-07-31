@@ -1,0 +1,11 @@
+{{ include "padel.fullname" . }} has been deployed to namespace {{ .Release.Namespace }}.
+
+{{- if .Values.ingress.enabled }}
+UI: https://{{ .Values.ingress.host }}/
+{{- else }}
+Ingress is disabled. Use port-forward to access the service:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "padel.fullname" . }} 8080:80
+{{- end }}
+
+The bundled sample data is available immediately. Enable live Playtomic ingestion and
+traffic-aware drive refreshes only after creating the required Kubernetes Secrets.

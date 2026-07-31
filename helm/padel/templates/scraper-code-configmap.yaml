@@ -1,0 +1,16 @@
+{{- if .Values.scraper.mountCode }}
+# Why: clubs.json and scrape.py used to be baked into the 2.4 GB Playwright
+# image, so changing one club slug meant a full rebuild + push (~15 min).
+# Mounting them from a ConfigMap turns the same change into a 2 s helm upgrade.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "padel.fullname" . }}-scraper-code
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+data:
+  clubs.json: |
+{{ .Files.Get "files/clubs.json" | indent 4 }}
+  scrape.py: |
+{{ .Files.Get "files/scrape.py" | indent 4 }}
+{{- end }}

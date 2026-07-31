@@ -1,0 +1,85 @@
+{{- if .Values.scraper.warmService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "padel.fullname" . }}-scraper
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: {{ include "padel.name" . }}
+      app.kubernetes.io/component: scraper-svc
+  template:
+    metadata:
+      annotations:
+        # scrape.py and clubs.json are mounted from a ConfigMap. Without this checksum the
+        # pod keeps running whatever code it started with, so a helm upgrade updated the
+        # ConfigMap while /api/recheck silently kept using the old scraper for days.
+        checksum/scraper-code: {{ include (print $.Template.BasePath "/scraper-code-configmap.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/part-of: {{ include "padel.name" . }}
+        app.kubernetes.io/component: scraper-svc
+    spec:
+      containers:
+        - name: scraper
+          image: "{{ .Values.scraper.image.repository }}:{{ .Values.scraper.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_INGEST
+              value: "http://{{ include "padel.fullname" . }}/api/ingest"
+            - name: CENTER_COORD
+              value: {{ .Values.scraper.centerCoord | quote }}
+            - name: RADIUS_MILES
+              value: {{ .Values.scraper.radiusMiles | quote }}
+            - name: SETTLE_MS
+              value: {{ .Values.scraper.settleMs | quote }}
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.scraper.warmService.resources | nindent 12 }}
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+{{- if .Values.scraper.mountCode }}
+            - name: scraper-code
+              mountPath: /srv/app/data/clubs.json
+              subPath: clubs.json
+            - name: scraper-code
+              mountPath: /srv/scrape.py
+              subPath: scrape.py
+{{- end }}
+      volumes:
+{{- if .Values.scraper.mountCode }}
+        - name: scraper-code
+          configMap:
+            name: {{ include "padel.fullname" . }}-scraper-code
+{{- end }}
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "padel.fullname" . }}-scraper
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app.kubernetes.io/part-of: {{ include "padel.name" . }}
+    app.kubernetes.io/component: scraper-svc
+{{- end }}

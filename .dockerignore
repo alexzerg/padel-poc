@@ -1,0 +1,9 @@
+app/static/logos/raw
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+.env
+*.log
+app/data/drive-usage.json

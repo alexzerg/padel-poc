@@ -1,0 +1,6 @@
+apiVersion: v2
+name: padel-finder
+description: Padel court availability aggregator with optional drive-time enrichment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

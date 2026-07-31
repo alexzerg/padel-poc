@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "padel.fullname" . }}
+  labels:
+    {{- include "padel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "padel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "padel.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.cache.configMap.enabled }}
+      serviceAccountName: {{ include "padel.fullname" . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: padel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if .Values.drive.enabled }}
+            - name: DRIVE_FILE
+              value: /state/drive.json
+            {{- end }}
+            {{- if .Values.cache.configMap.enabled }}
+            - name: CACHE_CONFIGMAP
+              value: {{ .Values.cache.configMap.name | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- end }}
+            {{- if .Values.playtomic.enabled }}
+            - name: PLAYTOMIC_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.playtomic.existingSecret }}
+                  key: {{ .Values.playtomic.emailKey }}
+                  optional: true
+            - name: PLAYTOMIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.playtomic.existingSecret }}
+                  key: {{ .Values.playtomic.passwordKey }}
+                  optional: true
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.drive.enabled }}
+            # Mounted as a directory, not with subPath: only directory mounts get the
+            # kubelet's automatic refresh when the ConfigMap changes, which is what lets the
+            # daily CronJob update drive times without restarting the API.
+            - name: drive-state
+              mountPath: /state
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.drive.enabled }}
+        - name: drive-state
+          configMap:
+            name: {{ .Values.drive.stateConfigMap }}
+            optional: true
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
